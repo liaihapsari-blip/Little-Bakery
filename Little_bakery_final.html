@@ -630,17 +630,19 @@ async function submitOrder() {
   btn.disabled = false;
   btn.textContent = '✅ Simpan ke Google Sheets';
 
-  // Buka tab Google Sheets setelah 1 detik
+  // Kirim data via image trick — works on all browsers
   setTimeout(function() {
     const url = SCRIPT_URL + '?' + params.toString();
-    window.open(url, '_blank');
-  }, 1000);
+    const img = new Image();
+    img.src = url;
+  }, 500);
 }
 
 function refreshRekap() {
   const url = SCRIPT_URL + '?action=refresh';
-  window.open(url, '_blank');
-  showToast('🔄 Rekap diperbarui! Tutup tab yang terbuka.');
+  const img = new Image();
+  img.src = url;
+  showToast('🔄 Rekap sedang diperbarui...');
 }
 
 function showToast(msg, err = false) {
