@@ -248,6 +248,7 @@ border-left: 4px solid var(–green); z-index: 9999; white-space: nowrap;
         <option value="Lunas">✅ Lunas</option>
       </select>
       <input class="form-input" id="custNote" type="text" placeholder="📝 Catatan (opsional)" />
+      <input class="form-input" id="custOngkir" type="number" placeholder="🚚 Ongkir (kosongkan jika tidak ada)" />
       <div class="total-bar">
         <div class="total-label">Total Pembayaran</div>
         <div class="total-amount" id="totalAmount">Rp 0</div>
@@ -349,7 +350,7 @@ border-left: 4px solid var(–green); z-index: 9999; white-space: nowrap;
 <div id="toast"></div>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUMi3C27d7Amum2XYAmuBCsk7SZJ4vGXiEmonsF1tr3bYMAqSN1-n0AGq_KZC0r5I/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby4gOOxGEj2NH1XW7kpHiLr6e_mZz2-WiabheH_XIuj2ld9af6qYSOleJAPMBeFwU32/exec';
 
 const MENU = [
   { category: "🍞 Rustic Bread", items: [
@@ -363,7 +364,7 @@ const MENU = [
   { category: "🌀 Soft Sourdough", items: [
     { name: "Cinnamon Roll", price: 25000 },
     { name: "Coffee Bun", price: 20000 },
-    { name: "Sourdough Double Choco", price: 20000 },
+    { name: "Double Choco", price: 20000 },
     { name: "Cranberry Cheese", price: 20000 },
     { name: "Matcha Cheese", price: 20000 },
     { name: "Milky Cheese", price: 25000 },
@@ -371,10 +372,13 @@ const MENU = [
     { name: "Raspberry Bun", price: 20000 },
     { name: "Smoked Beef", price: 20000 },
     { name: "Garlic Bread", price: 18000 },
+    { name: "Shokupan Large", price: 55000 },
+    { name: "Shokupan Small", price: 35000 },
   ]},
   { category: "🍕 Other Breads", items: [
     { name: "Pizza Bread", price: 85000 },
     { name: "Foccacia", price: 0, customPrice: true },
+    { name: "Baguette", price: 20000 },
   ]},
   { category: "🧂 Salt Bread", items: [
     { name: "Salt Ori Butter", price: 15000 },
@@ -521,12 +525,13 @@ function refreshBadges() {
   });
 }
 
-function showReceipt(nama, hp, hari, tglAmbil, bayar, catatan, orderSnapshot) {
-  const total = orderSnapshot.reduce((s, o) => s + o.price * o.qty, 0);
+function showReceipt(nama, hp, hari, tglAmbil, bayar, catatan, orderSnapshot, ongkir) {
+  ongkir = ongkir || 0;
+  const subtotalItems = orderSnapshot.reduce((s, o) => s + o.price * o.qty, 0);
+  const total = subtotalItems + ongkir;
   const tglFormatted = tglAmbil !== '-' ? tglAmbil : '';
   const ambil = [hari, tglFormatted].filter(x => x && x !== '-').join(', ');
 
-  // Build receipt text
   let lines = [];
   lines.push('🥐 *Little Bakery*');
   lines.push('─────────────────');
@@ -538,6 +543,7 @@ function showReceipt(nama, hp, hari, tglAmbil, bayar, catatan, orderSnapshot) {
     const subtotal = o.price * o.qty;
     lines.push(`${o.name} x${o.qty}  →  Rp ${subtotal.toLocaleString('id-ID')}`);
   });
+  if (ongkir > 0) lines.push(`🚚 Ongkir  →  Rp ${ongkir.toLocaleString('id-ID')}`);
   lines.push('─────────────────');
   lines.push(`💰 Total  : Rp ${total.toLocaleString('id-ID')}`);
   lines.push(`💳 Status : ${bayar}`);
@@ -552,7 +558,6 @@ function showReceipt(nama, hp, hari, tglAmbil, bayar, catatan, orderSnapshot) {
 
   lastReceiptText = lines.join('\n');
 
-  // Build HTML receipt
   let html = '';
   if (nama && nama !== '-') html += `<div style="margin-bottom:4px;"><b>👤 Nama</b>: ${nama}</div>`;
   if (hp && hp !== '-') html += `<div style="margin-bottom:4px;"><b>📱 No HP</b>: ${hp}</div>`;
@@ -565,6 +570,12 @@ function showReceipt(nama, hp, hari, tglAmbil, bayar, catatan, orderSnapshot) {
       <span style="font-weight:600;">Rp ${subtotal.toLocaleString('id-ID')}</span>
     </div>`;
   });
+  if (ongkir > 0) {
+    html += `<div style="display:flex;justify-content:space-between;margin-bottom:6px;color:#6b8a92;">
+      <span>🚚 Ongkir</span>
+      <span>Rp ${ongkir.toLocaleString('id-ID')}</span>
+    </div>`;
+  }
   html += `</div>`;
   html += `<div style="border-top:2px solid #5b9eac;padding-top:12px;">`;
   html += `<div style="display:flex;justify-content:space-between;font-size:1.05rem;">
@@ -681,6 +692,7 @@ function clearOrder() {
   document.getElementById('custPickupTime').value = '';
   document.getElementById('custPayment').selectedIndex = 0;
   document.getElementById('custNote').value = '';
+  document.getElementById('custOngkir').value = '';
   updateCart();
   // Re-render menu setelah order kosong supaya semua badge reset
   const c = document.getElementById('menuContainer');
@@ -740,6 +752,7 @@ async function submitOrder() {
     bayar:     document.getElementById('custPayment').value,
     items:     order.map(o => `${o.name}|${o.qty}|${o.price}`).join(','),
     catatan:   document.getElementById('custNote').value || '-',
+    ongkir:    document.getElementById('custOngkir').value || '0',
   };
 
   const params = new URLSearchParams({
@@ -750,7 +763,8 @@ async function submitOrder() {
     jam_ambil: payload.jam_ambil,
     bayar:     payload.bayar,
     items:     payload.items,
-    catatan:   payload.catatan
+    catatan:   payload.catatan,
+    ongkir:    payload.ongkir
   });
 
   // Simpan snapshot sebelum clear
@@ -761,9 +775,10 @@ async function submitOrder() {
   const tgl     = payload.tgl_ambil;
   const bayar   = payload.bayar;
   const catatan = payload.catatan;
+  const ongkir  = parseInt(payload.ongkir) || 0;
 
   // Tampilkan receipt dulu
-  showReceipt(nama, hp, hari, tgl, bayar, catatan, orderSnapshot);
+  showReceipt(nama, hp, hari, tgl, bayar, catatan, orderSnapshot, ongkir);
 
   clearOrder();
   cartOpen = false;
